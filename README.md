@@ -1,29 +1,41 @@
 # Terrain Sphere Three.js Shader
 
-A real-time interactive 3D terrain sphere rendered entirely in the browser using custom GLSL shaders and Three.js. The sphere's surface is dynamically deformed on the GPU using Simplex noise FBM to produce a stylized planet with mountains, valleys, and oceans -- all without any build tools or external dependencies.
+An experiment in real-time procedural terrain generation using custom GLSL shaders and Three.js. A sphere is deformed on the GPU via Simplex noise and Fractal Brownian Motion, with interactive effects triggered by mouse hover and click.
 
 ![Preview](img/preview.jpg)
 
+## About
+
+This is a shader experiment that explores:
+
+- Procedural surface displacement using 3D Simplex noise with 3-octave FBM
+- Real-time GPU-side vertex deformation
+- Height-based color mapping with smooth gradient transitions
+- Interactive feedback through raycasting and shader uniforms
+- Directional lighting with wrap, specular, Fresnel rim, and ambient components
+
+The sphere rotates slowly, breathes with a subtle sinusoidal pulsation, and responds to user interaction with ripple and pulse wave effects.
+
 ## Features
 
-- **GPU-Driven Terrain** -- All surface deformation is computed in the vertex shader using 3D Simplex noise with Fractal Brownian Motion (3 octaves). The CPU only passes three float uniforms per frame, keeping the main loop extremely lightweight.
-- **Height-Based Coloring** -- The fragment shader maps elevation to a 5-stop color palette: deep ocean, shallow water, midland, highland, and snow cap, with smooth `smoothstep` transitions between bands.
-- **Directional Lighting** -- Includes wrap lighting, specular highlights, Fresnel rim lighting, and ambient contribution. Lit sides receive a warm sun tint while shadow sides shift toward cool blue tones.
-- **Breathing Animation** -- A subtle sinusoidal pulsation along the sphere normals gives the terrain a living, organic feel.
-- **Hover Ripple Effect** -- Mouse hover is detected via raycasting and triggers concentric ripple waves that propagate across the surface, driven by a smoothly interpolated uniform.
-- **Click Pulse Effect** -- Clicking the sphere triggers a radial wave pulse that decays smoothly over time.
-- **Orbit Controls** -- The user can rotate and zoom the sphere via mouse drag and scroll, with damping and constrained zoom distance (2 to 6 units).
+- **Vertex Shader Displacement** -- Simplex noise FBM drives the terrain shape, with 3 octaves producing smooth rounded deformations on the sphere surface.
+- **Fragment Shader Lighting** -- Directional sun with wrap lighting, specular highlights, Fresnel rim, and ambient. Warm and cool color tinting based on lit vs shadow side.
+- **Height-Based Color Palette** -- 5-stop gradient mapped to elevation, transitioning from dark tones at low displacement to bright tones at high displacement.
+- **Breathing Animation** -- Sinusoidal pulsation along vertex normals driven by elapsed time.
+- **Hover Ripple** -- Raycaster detects mouse-over on the sphere, triggering concentric wave ripples that modulate the displacement.
+- **Click Pulse** -- Clicking the sphere fires a radial wave pulse that decays over time.
+- **Orbit Controls** -- Drag to rotate, scroll to zoom, with damping and constrained distance.
 
 ## Tech Stack
 
-| Technology | Usage |
+| Technology | Purpose |
 |---|---|
-| Three.js v0.164.1 | 3D rendering engine (scene, camera, renderer, mesh, raycaster, clock) |
-| GLSL | Custom vertex and fragment shaders for terrain displacement and coloring |
+| Three.js v0.164.1 | 3D rendering (scene, camera, renderer, raycaster, clock) |
+| GLSL | Custom vertex and fragment shaders |
 | ES Modules | Native browser module loading via import maps |
-| OrbitControls | Interactive camera rotation and zoom (loaded from CDN) |
+| OrbitControls | Camera interaction (loaded from CDN) |
 
-No build tools, no bundler, no `package.json`. Three.js is loaded entirely from the jsDelivr CDN.
+No bundler, no `package.json`, no build step. Three.js loads from jsDelivr CDN.
 
 ## Project Structure
 
@@ -33,8 +45,8 @@ No build tools, no bundler, no `package.json`. Three.js is loaded entirely from 
 |-- img/
 |   |-- preview.jpg               # Preview screenshot
 |-- src/
-    |-- main.js                   # Entry point (imports App)
-    |-- App.js                    # Core application (loop, events, uniforms)
+    |-- main.js                   # Entry point
+    |-- App.js                    # Application loop, events, uniforms
     |-- components/
     |   |-- Camera.js             # Perspective camera factory
     |   |-- Controls.js           # OrbitControls factory
@@ -42,81 +54,61 @@ No build tools, no bundler, no `package.json`. Three.js is loaded entirely from 
     |   |-- Scene.js              # Scene factory
     |   |-- Sphere.js             # Sphere mesh with ShaderMaterial
     |-- shaders/
-        |-- sphereVertex.glsl.js  # Vertex shader (terrain displacement)
-        |-- sphereFragment.glsl.js # Fragment shader (lighting + coloring)
+        |-- sphereVertex.glsl.js  # Vertex shader (displacement)
+        |-- sphereFragment.glsl.js # Fragment shader (lighting + color)
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- A modern web browser with ES module support (Chrome, Firefox, Edge, Safari)
-- A local HTTP server (required for ES module imports)
+- A modern browser with ES module support
+- A local HTTP server
 
-### Running Locally
-
-**Option A -- npx serve:**
+### Running
 
 ```bash
 npx serve .
 ```
 
-Then open `http://localhost:3000` in your browser.
+Then open `http://localhost:3000`.
 
-**Option B -- Python HTTP server:**
+Or use Python:
 
 ```bash
 python -m http.server
 ```
 
-Then open `http://localhost:8000` in your browser.
+Or open `index.html` with VS Code Live Server.
 
-**Option C -- VS Code Live Server:**
+> Opening via `file://` may fail due to CORS restrictions on ES module imports.
 
-Open `index.html` with the Live Server extension.
+## Shader Details
 
-> Direct file opening (`file://`) may not work due to CORS restrictions on ES module imports. A local server is recommended.
+### Vertex Shader
 
-## How It Works
+The vertex shader applies four displacement effects in order along the vertex normal:
 
-### Vertex Shader (`sphereVertex.glsl.js`)
+1. **Breathing** -- `sin(uTime * 0.8) * 0.04`
+2. **Terrain** -- FBM noise scaled to 0.3 units, shaped with `pow(mountains, 1.5)`
+3. **Hover Ripple** -- `sin(length(pos.xz) * 6.0 - uTime * 3.0) * 0.12` modulated by hover uniform
+4. **Click Pulse** -- `sin(length(pos) * 8.0 - uTime * 10.0) * 0.2` modulated by click uniform
 
-The vertex shader contains a complete self-contained 3D Simplex noise implementation (~45 lines of GLSL) and applies four displacement effects in order:
+### Fragment Shader
 
-1. **Breathing** -- `sin(uTime * 0.8) * 0.04` along the vertex normal
-2. **Terrain** -- FBM noise scaled to 0.3 units, shaped with `pow(mountains, 1.5)` for rounded hill profiles
-3. **Hover Ripple** -- `sin(length(pos.xz) * 6.0 - uTime * 3.0) * 0.12` modulated by the hover uniform
-4. **Click Pulse** -- `sin(length(pos) * 8.0 - uTime * 10.0) * 0.2` modulated by the click uniform
+Computes lighting and maps elevation to a 5-stop color gradient with smoothstep transitions. Applies warm sun tint on lit side, cool tint on shadow side, plus Fresnel rim and ambient.
 
-### Fragment Shader (`sphereFragment.glsl.js`)
+### Application Loop
 
-The fragment shader computes lighting and applies a 5-stop height-based color gradient:
-
-| Elevation | Color | Description |
-|---|---|---|
-| Deep | `(0.02, 0.04, 0.12)` | Dark navy |
-| Low | `(0.0, 0.25, 0.35)` | Teal |
-| Mid | `(0.75, 0.55, 0.3)` | Warm tan |
-| High | `(0.85, 0.35, 0.15)` | Burnt orange |
-| Snow | `(0.95, 0.93, 0.98)` | Near-white |
-
-### Application Loop (`App.js`)
-
-The animation loop uses `requestAnimationFrame` and performs:
-
-- Time tracking via `THREE.Clock`
-- Smooth interpolation of hover and click state
-- Uniform updates (`uTime`, `uHover`, `uClick`)
-- Slow rotation of the sphere on both axes
-- OrbitControls update and scene render
+Uses `requestAnimationFrame` with `THREE.Clock`. Smoothly interpolates hover state, decays click pulse, rotates the sphere, pushes 3 uniforms (`uTime`, `uHover`, `uClick`) to the shader, and renders.
 
 ## Performance
 
-- Pixel ratio capped at 2 to prevent high-DPI slowdowns
-- Sphere geometry at 128x128 segments for smooth displacement without excessive vertex count
-- All terrain computation on the GPU -- CPU only passes 3 float uniforms per frame
+- Pixel ratio capped at 2
+- 128x128 sphere geometry segments
+- All terrain computation on the GPU -- CPU passes only 3 float uniforms per frame
 - No allocations inside the render loop
 
 ## License
 
-This project is open source. Feel free to use, modify, and distribute.
+MIT License. See [LICENSE](LICENSE) for details.
