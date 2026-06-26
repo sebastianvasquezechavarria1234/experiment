@@ -57,7 +57,7 @@ export const sphereVertexShader = /* glsl */ `
     return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
   }
 
-  // FBM
+  // FBM with rounded output
   float fbm(vec3 p) {
     float val = 0.0;
     float amp = 0.5;
@@ -66,6 +66,8 @@ export const sphereVertexShader = /* glsl */ `
       p *= 2.0;
       amp *= 0.5;
     }
+    // Round the edges: smooth cubic interpolation
+    val = val * val * (3.0 - 2.0 * val);
     return val;
   }
 
@@ -79,23 +81,27 @@ export const sphereVertexShader = /* glsl */ `
     float breathe = sin(uTime * 0.8) * 0.03;
     pos += normal * breathe;
 
-    // --- Mountain deformation ---
+    // --- Mountain deformation with rounded peaks ---
     float mountains = fbm(pos * 2.0 + uTime * 0.05);
     float peaks = fbm(pos * 4.0 + vec3(0.0, uTime * 0.1, 0.0));
 
+    // Power curve to round the tops
     float displacement = mountains * 0.25 + peaks * 0.1;
+    displacement = pow(abs(displacement), 0.8) * sign(displacement);
     pos += normal * displacement;
 
-    // --- Hover: ripple outward from top ---
-    float hoverWave = sin(length(pos.xz) * 6.0 - uTime * 4.0) * 0.1;
+    // --- Hover: sharp ripples ---
+    float hoverWave = sin(length(pos.xz) * 8.0 - uTime * 6.0) * 0.18;
+    hoverWave *= exp(-abs(sin(length(pos.xz) * 8.0 - uTime * 6.0)) * 2.0);
     pos += normal * hoverWave * uHover;
 
-    // --- Click: pulse burst ---
-    float clickBurst = uClick * sin(length(pos) * 8.0 - uTime * 12.0) * 0.15;
-    pos += normal * clickBurst;
+    // --- Click: fast snap burst ---
+    float clickSnap = uClick * sin(length(pos) * 10.0 - uTime * 18.0) * 0.3;
+    clickSnap *= uClick;
+    pos += normal * clickSnap;
 
     // Store elevation for fragment
-    vElevation = displacement + breathe + hoverWave * uHover + clickBurst;
+    vElevation = displacement + breathe + hoverWave * uHover + clickSnap;
 
     vPosition = (modelViewMatrix * vec4(pos, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
