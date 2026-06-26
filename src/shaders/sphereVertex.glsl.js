@@ -1,19 +1,14 @@
 export const sphereVertexShader = /* glsl */ `
   uniform float uTime;
-  uniform vec2 uMouse;
   uniform float uHover;
-  uniform float uExplosion;
-  uniform float uDistortion;
+  uniform float uClick;
 
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vPosition;
-  varying vec3 vWorldPosition;
-  varying float vExplosion;
-  varying float vHover;
-  varying float vDistortion;
+  varying float vElevation;
 
-  // --- Noise utilities ---
+  // Simplex 3D noise
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
@@ -62,75 +57,47 @@ export const sphereVertexShader = /* glsl */ `
     return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
   }
 
+  // FBM
   float fbm(vec3 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    float frequency = 1.0;
+    float val = 0.0;
+    float amp = 0.5;
     for (int i = 0; i < 5; i++) {
-      value += amplitude * snoise(p * frequency);
-      amplitude *= 0.5;
-      frequency *= 2.0;
+      val += amp * snoise(p);
+      p *= 2.0;
+      amp *= 0.5;
     }
-    return value;
+    return val;
   }
 
   void main() {
     vUv = uv;
-    vExplosion = uExplosion;
-    vHover = uHover;
-    vDistortion = uDistortion;
+    vNormal = normalize(normalMatrix * normal);
 
     vec3 pos = position;
 
-    // --- Layer 1: Organic breathing (multi-octave FBM) ---
-    float breath = fbm(pos * 1.5 + uTime * 0.3) * 0.08;
-    pos += normal * breath;
+    // --- Breathing ---
+    float breathe = sin(uTime * 0.8) * 0.03;
+    pos += normal * breathe;
 
-    // --- Layer 2: Surface detail ripples ---
-    float ripple = sin(pos.x * 8.0 + uTime * 1.2)
-                 * sin(pos.y * 8.0 + uTime * 0.9)
-                 * sin(pos.z * 8.0 + uTime * 1.1);
-    pos += normal * ripple * 0.02 * (1.0 + uDistortion * 2.0);
+    // --- Mountain deformation ---
+    float mountains = fbm(pos * 2.0 + uTime * 0.05);
+    float peaks = fbm(pos * 4.0 + vec3(0.0, uTime * 0.1, 0.0));
 
-    // --- Layer 3: Mouse magnetic attraction ---
-    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
-    vec3 mouseDir = normalize(worldPos.xyz - vec3(uMouse * 3.0, 0.0));
-    float mouseDist = length(worldPos.xyz - vec3(uMouse * 3.0, 0.0));
-    float attraction = smoothstep(3.0, 0.0, mouseDist) * uHover;
+    float displacement = mountains * 0.25 + peaks * 0.1;
+    pos += normal * displacement;
 
-    // Magnetic pull toward mouse
-    pos -= mouseDir * attraction * 0.3;
+    // --- Hover: ripple outward from top ---
+    float hoverWave = sin(length(pos.xz) * 6.0 - uTime * 4.0) * 0.1;
+    pos += normal * hoverWave * uHover;
 
-    // Surface deformation at mouse point
-    float deform = smoothstep(1.5, 0.0, mouseDist) * uHover;
-    pos += normal * deform * sin(uTime * 8.0) * 0.08;
+    // --- Click: pulse burst ---
+    float clickBurst = uClick * sin(length(pos) * 8.0 - uTime * 12.0) * 0.15;
+    pos += normal * clickBurst;
 
-    // --- Layer 4: Explosion fragmentation ---
-    float expNoise1 = fbm(pos * 2.0 + uTime * 3.0);
-    float expNoise2 = snoise(pos * 4.0 + uTime * 5.0);
-    float expNoise3 = snoise(normal * 3.0 + uTime * 2.0);
+    // Store elevation for fragment
+    vElevation = displacement + breathe + hoverWave * uHover + clickBurst;
 
-    // Main explosion force
-    float expForce = uExplosion * (1.0 + expNoise1 * 0.6);
-    pos += normal * expForce * (0.5 + abs(expNoise2) * 0.8);
-
-    // Radial scatter
-    vec3 scatterDir = normalize(pos + vec3(expNoise2, expNoise1, expNoise3));
-    pos += scatterDir * uExplosion * abs(expNoise3) * 0.4;
-
-    // Chunks breaking off
-    float chunk = step(0.6, snoise(pos * 3.0 + uTime * 4.0));
-    pos += normal * chunk * uExplosion * 0.6;
-
-    // --- Layer 5: Post-explosion distortion ---
-    float postExp = uDistortion;
-    float postNoise = fbm(pos * 2.0 + uTime);
-    pos += normal * postNoise * postExp * 0.15;
-
-    vPosition = (modelMatrix * vec4(pos, 1.0)).xyz;
-    vWorldPosition = (modelMatrix * vec4(pos, 1.0)).xyz;
-    vNormal = normalize(normalMatrix * normal);
-
+    vPosition = (modelViewMatrix * vec4(pos, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
 `;
