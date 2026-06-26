@@ -91,18 +91,16 @@ export const sphereVertexShader = /* glsl */ `
     float displacement = hill * 0.3;
     pos += normal * displacement;
 
-    // --- Hover: brusque ripples ---
-    float ripple = sin(length(pos.xz) * 10.0 - uTime * 8.0);
-    ripple = pow(abs(ripple), 0.4) * sign(ripple);
-    pos += normal * ripple * 0.2 * uHover;
+    // --- Hover: soft ripples ---
+    float ripple = sin(length(pos.xz) * 6.0 - uTime * 3.0) * 0.12;
+    pos += normal * ripple * uHover;
 
-    // --- Click: snap burst ---
-    float snap = sin(length(pos) * 12.0 - uTime * 20.0);
-    snap = pow(abs(snap), 0.3) * sign(snap);
-    pos += normal * snap * 0.35 * uClick;
+    // --- Click: gentle pulse ---
+    float snap = sin(length(pos) * 8.0 - uTime * 10.0) * 0.2;
+    pos += normal * snap * uClick;
 
     // Store elevation
-    vElevation = displacement + breathe + ripple * 0.2 * uHover + snap * 0.35 * uClick;
+    vElevation = displacement + breathe + ripple * uHover + snap * uClick;
 
     vPosition = (modelViewMatrix * vec4(pos, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);

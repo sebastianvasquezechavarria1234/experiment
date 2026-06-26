@@ -11,31 +11,26 @@ export const sphereFragmentShader = /* glsl */ `
   void main() {
     vec3 viewDir = normalize(-vPosition);
 
-    // Light
-    vec3 lightDir = normalize(vec3(1.0, 2.0, 1.5));
-    float diff = max(dot(vNormal, lightDir), 0.0);
+    // --- Sun light ---
+    vec3 sunDir = normalize(vec3(2.0, 3.0, 2.0));
+    float diff = max(dot(vNormal, sunDir), 0.0);
 
-    // Specular
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(vNormal, halfDir), 0.0), 16.0);
+    // Warm wrap lighting
+    float wrap = (dot(vNormal, sunDir) + 0.4) / 1.4;
+    diff = max(wrap, 0.0);
+
+    // Specular sun
+    vec3 halfDir = normalize(sunDir + viewDir);
+    float spec = pow(max(dot(vNormal, halfDir), 0.0), 32.0);
 
     // Fresnel
     float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
 
-    // --- Nice palette ---
-    // Deep ocean
+    // --- Palette ---
     vec3 deepColor = vec3(0.02, 0.04, 0.12);
-
-    // Lagoon teal
     vec3 lowColor = vec3(0.0, 0.25, 0.35);
-
-    // Warm sand
     vec3 midColor = vec3(0.75, 0.55, 0.3);
-
-    // Terracotta
     vec3 highColor = vec3(0.85, 0.35, 0.15);
-
-    // Snow
     vec3 snowColor = vec3(0.95, 0.93, 0.98);
 
     float h = vElevation;
@@ -46,18 +41,29 @@ export const sphereFragmentShader = /* glsl */ `
     color = mix(color, highColor, smoothstep(0.12, 0.2, h));
     color = mix(color, snowColor, smoothstep(0.2, 0.3, h));
 
-    // Apply lighting
-    color *= 0.3 + diff * 0.7;
-    color += spec * vec3(0.8, 0.85, 1.0) * 0.3;
-    color += fresnel * vec3(0.2, 0.4, 0.7) * 0.4;
+    // Sun warm tint
+    vec3 sunColor = vec3(1.0, 0.9, 0.7);
+    vec3 shadowColor = vec3(0.05, 0.08, 0.15);
 
-    // Hover glow: energy tint
-    color += uHover * fresnel * vec3(0.3, 0.6, 1.0) * 0.5;
-    float pulse = sin(uTime * 3.0) * 0.5 + 0.5;
-    color += uHover * pulse * vec3(0.1, 0.2, 0.4) * 0.2;
+    // Lit side: warm sun, dark side: cool shadows
+    vec3 lit = mix(shadowColor, sunColor, diff) * color;
 
-    // Click flash
-    color += uClick * vec3(1.0, 0.6, 0.2) * 0.4;
+    // Specular highlight
+    lit += spec * sunColor * 0.6;
+
+    // Fresnel rim
+    lit += fresnel * vec3(0.15, 0.25, 0.5) * 0.3;
+
+    // Ambient
+    lit += color * 0.08;
+
+    color = lit;
+
+    // Hover: subtle glow
+    color += uHover * fresnel * vec3(0.2, 0.4, 0.8) * 0.25;
+
+    // Click: warm flash
+    color += uClick * vec3(1.0, 0.6, 0.2) * 0.25;
 
     gl_FragColor = vec4(color, 1.0);
   }
