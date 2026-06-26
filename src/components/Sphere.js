@@ -10,24 +10,10 @@ export function createSphere() {
     fragmentShader: sphereFragmentShader,
     uniforms: {
       uTime: { value: 0 },
-      uMouse: { value: new THREE.Vector2(0, 0) },
       uHover: { value: 0 },
-      uExplosion: { value: 0 },
-      uDistortion: { value: 0 },
+      uClick: { value: 0 },
     },
-    side: THREE.FrontSide,
   });
 
-  const sphere = new THREE.Mesh(geometry, material);
-  return sphere;
-}
-
-export function updateSphere(sphere, elapsedTime) {
-  sphere.material.uniforms.uTime.value = elapsedTime;
-}
-
-export function setSphereUniform(sphere, name, value) {
-  if (sphere.material.uniforms[name]) {
-    sphere.material.uniforms[name].value = value;
-  }
+  return new THREE.Mesh(geometry, material);
 }
