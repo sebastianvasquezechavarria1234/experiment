@@ -57,17 +57,18 @@ export const sphereVertexShader = /* glsl */ `
     return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
   }
 
-  // FBM with rounded output
+  // FBM smooth rounded hills
   float fbm(vec3 p) {
     float val = 0.0;
     float amp = 0.5;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 3; i++) {
       val += amp * snoise(p);
       p *= 2.0;
       amp *= 0.5;
     }
-    // Round the edges: smooth cubic interpolation
-    val = val * val * (3.0 - 2.0 * val);
+    // Clamp to 0..1 and smooth
+    val = val * 0.5 + 0.5;
+    val = smoothstep(0.1, 0.9, val);
     return val;
   }
 
@@ -78,30 +79,30 @@ export const sphereVertexShader = /* glsl */ `
     vec3 pos = position;
 
     // --- Breathing ---
-    float breathe = sin(uTime * 0.8) * 0.03;
+    float breathe = sin(uTime * 0.8) * 0.04;
     pos += normal * breathe;
 
-    // --- Mountain deformation with rounded peaks ---
-    float mountains = fbm(pos * 2.0 + uTime * 0.05);
-    float peaks = fbm(pos * 4.0 + vec3(0.0, uTime * 0.1, 0.0));
+    // --- Rounded mountains ---
+    float mountains = fbm(pos * 1.8 + uTime * 0.04);
 
-    // Power curve to round the tops
-    float displacement = mountains * 0.25 + peaks * 0.1;
-    displacement = pow(abs(displacement), 0.8) * sign(displacement);
+    // Smooth dome shape per hill
+    float hill = pow(mountains, 1.5);
+
+    float displacement = hill * 0.3;
     pos += normal * displacement;
 
-    // --- Hover: sharp ripples ---
-    float hoverWave = sin(length(pos.xz) * 8.0 - uTime * 6.0) * 0.18;
-    hoverWave *= exp(-abs(sin(length(pos.xz) * 8.0 - uTime * 6.0)) * 2.0);
-    pos += normal * hoverWave * uHover;
+    // --- Hover: brusque ripples ---
+    float ripple = sin(length(pos.xz) * 10.0 - uTime * 8.0);
+    ripple = pow(abs(ripple), 0.4) * sign(ripple);
+    pos += normal * ripple * 0.2 * uHover;
 
-    // --- Click: fast snap burst ---
-    float clickSnap = uClick * sin(length(pos) * 10.0 - uTime * 18.0) * 0.3;
-    clickSnap *= uClick;
-    pos += normal * clickSnap;
+    // --- Click: snap burst ---
+    float snap = sin(length(pos) * 12.0 - uTime * 20.0);
+    snap = pow(abs(snap), 0.3) * sign(snap);
+    pos += normal * snap * 0.35 * uClick;
 
-    // Store elevation for fragment
-    vElevation = displacement + breathe + hoverWave * uHover + clickSnap;
+    // Store elevation
+    vElevation = displacement + breathe + ripple * 0.2 * uHover + snap * 0.35 * uClick;
 
     vPosition = (modelViewMatrix * vec4(pos, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);

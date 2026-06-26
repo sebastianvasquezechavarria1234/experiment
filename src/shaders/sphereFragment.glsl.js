@@ -22,34 +22,29 @@ export const sphereFragmentShader = /* glsl */ `
     // Fresnel
     float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
 
-    // --- Height coloring like mountains ---
-    // Deep valleys: dark blue/teal
-    vec3 deepColor = vec3(0.05, 0.12, 0.25);
+    // --- Nice palette ---
+    // Deep ocean
+    vec3 deepColor = vec3(0.02, 0.04, 0.12);
 
-    // Mid terrain: earthy green
-    vec3 midColor = vec3(0.15, 0.35, 0.15);
+    // Lagoon teal
+    vec3 lowColor = vec3(0.0, 0.25, 0.35);
 
-    // Peaks: warm orange/brown
-    vec3 peakColor = vec3(0.65, 0.35, 0.15);
+    // Warm sand
+    vec3 midColor = vec3(0.75, 0.55, 0.3);
 
-    // Snow caps: white
-    vec3 snowColor = vec3(0.9, 0.92, 0.95);
+    // Terracotta
+    vec3 highColor = vec3(0.85, 0.35, 0.15);
+
+    // Snow
+    vec3 snowColor = vec3(0.95, 0.93, 0.98);
 
     float h = vElevation;
 
-    vec3 color;
-    if (h < -0.05) {
-      color = deepColor;
-    } else if (h < 0.05) {
-      float t = smoothstep(-0.05, 0.05, h);
-      color = mix(deepColor, midColor, t);
-    } else if (h < 0.15) {
-      float t = smoothstep(0.05, 0.15, h);
-      color = mix(midColor, peakColor, t);
-    } else {
-      float t = smoothstep(0.15, 0.25, h);
-      color = mix(peakColor, snowColor, t);
-    }
+    vec3 color = deepColor;
+    color = mix(color, lowColor, smoothstep(0.0, 0.05, h));
+    color = mix(color, midColor, smoothstep(0.05, 0.12, h));
+    color = mix(color, highColor, smoothstep(0.12, 0.2, h));
+    color = mix(color, snowColor, smoothstep(0.2, 0.3, h));
 
     // Apply lighting
     color *= 0.3 + diff * 0.7;
